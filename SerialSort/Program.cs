@@ -1,149 +1,170 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Environments;
+using BenchmarkDotNet.Exporters;
+using BenchmarkDotNet.Exporters.Csv;
+using BenchmarkDotNet.Jobs;
+using Microsoft.Diagnostics.Runtime.Interop;
 
 namespace SerialSort
 {
+    [RPlotExporter]
     class Program
     {
-        // кол-во элементов в массиве
-        public static int elemsCount = 104;
-
-        // число итераций = степени числа блоков
-        public static int N = 3;
-
-        public static int[] unsortedArray = new int[elemsCount];
-
-        // число блоков должно быть степенью 2
-        public static int blocksCount = (int) Math.Pow(2, N);
-        public static int threadsCount = blocksCount / 2;
-        public static int currentBlockNum = blocksCount / 2;
-        public static int previousBlockNum = blocksCount;
-        public static List<int>[] blocks = new List<int>[blocksCount];
-        public static int[] sortedArray = new int[elemsCount];
-
-
-        /*public static string ToBinary(int num)
+        public class MyConfig : ManualConfig
         {
-            string tmp = Convert.ToString(num, 2).PadLeft(3, '0');
-            string result = new string(tmp.Reverse().ToArray());
-            return result;
-        }*/
-
-        // заполняем блоки
-        public static void FillBlocks()
-        {
-            // инициализируем блоки
-            for (int i = 0; i < blocksCount; i++)
+            public MyConfig()
             {
-                blocks[i] = new List<int>();
-            }
-
-            for (int i = 0; i < blocks.Length; i++)
-            {
-                int firstIndex = i * (elemsCount / blocksCount);
-                // если число элементов не кратно числу блоков, в последнем блоке будет больше элементов
-                int lastIndex = (i + 1) * (elemsCount / blocksCount) +
-                                (i == blocksCount - 1 ? elemsCount % blocksCount : 0);
-                for (int j = firstIndex; j < lastIndex; j++)
-                {
-                    blocks[i].Add(unsortedArray[j]);
-                }
+                AddExporter(CsvMeasurementsExporter.Default);
+                AddExporter(RPlotExporter.Default);
+                Add(Job.Default.With(ClrRuntime.Net47).With(Jit.RyuJit).With(Platform.X64).WithId("NET4.7_RyuJIT-x64"));
+                //  Add(CsvMeasurementsExporter.Default);
+                //  Add(RPlotExporter.Default);
             }
         }
 
-        public static void CompareBlocks(int firstBlockNum, int secondBlockNum, int pivot)
+        [Config(typeof(MyConfig))]
+        public static class  SerialSort
         {
-            List<int> temp = new List<int>();
-            for (int i = 0; i < blocks[firstBlockNum].Count; i++) temp.Add(blocks[firstBlockNum][i]);
-            for (int i = 0; i < blocks[secondBlockNum].Count; i++) temp.Add(blocks[secondBlockNum][i]);
-            blocks[firstBlockNum].Clear();
-            blocks[secondBlockNum].Clear();
-            for (int i = 0; i < temp.Count; i++)
+            // кол-во элементов в массиве
+            public static int elemsCount = 100;
+
+            // число итераций = степени числа блоков
+            public static int N = 3;
+
+            public static int[] unsortedArray = new int[elemsCount];
+
+            // число блоков должно быть степенью 2
+            public static int blocksCount = (int) Math.Pow(2, N);
+            public static int threadsCount = blocksCount / 2;
+            public static List<int>[] blocks = new List<int>[blocksCount];
+
+
+            // заполняем блоки
+            [Benchmark]
+            public static void FillBlocks()
             {
-                if (temp[i] > pivot)
+                // инициализируем блоки
+                for (int i = 0; i < blocksCount; i++)
                 {
-                    blocks[secondBlockNum].Add(temp[i]);
+                    blocks[i] = new List<int>();
                 }
-                else
+
+                for (int i = 0; i < blocks.Length; i++)
                 {
-                    blocks[firstBlockNum].Add(temp[i]);
-                }
-            }
-        }
-        static void AssembleArray()
-        {
-            int ind = 0;
-            for (int i = 0; i < blocks.Length; i++)
-            {
-                for (int j = 0; j < blocks[i].Count; j++)
-                {
-                    sortedArray[ind] = blocks[i][j];
-                    ind++;
-                }
-            }
-        }
-        public static void QuickBucketSort()
-        {
-            FillBlocks();
-            
-            int pivot = 0;
-            while (currentBlockNum > 0)
-            {
-                for (int i = 0; i < blocksCount; i += previousBlockNum)
-                {
-                    for (int j = i; j < i + currentBlockNum; j++)
+                    int firstIndex = i * (elemsCount / blocksCount);
+                    // если число элементов не кратно числу блоков, в последнем блоке будет больше элементов
+                    int lastIndex = (i + 1) * (elemsCount / blocksCount) +
+                                    (i == blocksCount - 1 ? elemsCount % blocksCount : 0);
+                    for (int j = firstIndex; j < lastIndex; j++)
                     {
-                        if (blocks[j].Count != 0)
+                        blocks[i].Add(unsortedArray[j]);
+                    }
+                }
+            }
+
+            [Benchmark]
+            public static void CompareBlocks(int firstBlockNum, int secondBlockNum, int pivot)
+            {
+                // вариант с 2 циклами
+                int secondBlock = blocks[secondBlockNum].Count;
+                int i = 0;
+                while (i < blocks[firstBlockNum].Count)
+                {
+                    if (blocks[firstBlockNum][i] >= pivot)
+                    {
+                        blocks[secondBlockNum].Add(blocks[firstBlockNum][i]);
+                        blocks[firstBlockNum].Remove(blocks[firstBlockNum][i]);
+                        i--;
+                    }
+
+                    i++;
+                }
+
+                i = 0;
+                while (i < secondBlock)
+                {
+                    if (blocks[secondBlockNum][i] < pivot)
+                    {
+                        blocks[firstBlockNum].Add(blocks[secondBlockNum][i]);
+                        blocks[secondBlockNum].Remove(blocks[secondBlockNum][i]);
+                        i--;
+                        secondBlock--;
+                    }
+
+                    i++;
+                }
+            }
+
+            [Benchmark]
+            public static void QuickBucketSort()
+            {
+                FillBlocks();
+
+                for (int i = 0; i < N; i++)
+                {
+                    int step = (int) Math.Pow(2, N - 1 - i);
+                    int first = 0;
+                    int second = step;
+                    int x = 0;
+                    int pivot = 0;
+                    while (first < blocksCount - step && second < blocksCount)
+                    {
+                        if (blocks[first].Count != 0)
                         {
-                            pivot = blocks[j][blocks[j].Count / 2];
-                            break;
+                            // с вычислением среднего значения заполнение блоков более равномерное
+                            pivot = (int) blocks[first].Average();
+                            Console.WriteLine("pivot {0} i = {1}", pivot, Math.Pow(2, i));
                         }
-                    }
 
-                    for (int j = i; j < i + currentBlockNum; j++)
-                    {
-                        CompareBlocks(j,j+currentBlockNum, pivot);
+                        while (x < step)
+                        {
+                            Console.WriteLine("сравнение блока {0} и {1}", first, second);
+                            CompareBlocks(first, second, pivot);
+                            x++;
+                            first++;
+                            second++;
+                        }
+
+                        x = 0;
+                        first += step;
+                        second += step;
                     }
                 }
-                previousBlockNum = currentBlockNum;
-                currentBlockNum /= 2;
-            }
-
-            // N операций взаимодействия пар блоков
-            for (int i = 0; i < N; i++)
-            {
-            }
-
-            for (int i = 0; i < blocks.Length; i++)
-            {
-                for (int j = 0; j < blocks[i].Count; j++)
+                
+                for (int i = 0; i < blocks.Length; i++)
                 {
-                    Console.Write(blocks[i][j] + " ");
+                    blocks[i].Sort();
                 }
 
-                Console.WriteLine();
+                int[] sortedArray = blocks.SelectMany(x => x).ToArray();
+                Console.WriteLine(sortedArray.Length);
+                foreach (var i in sortedArray)
+                {
+                    Console.Write(i + " ");
+                }
+            }
+
+            public static void FillArray()
+            {
+                Random rand = new Random();
+                for (int i = 0; i < unsortedArray.Length; i++)
+                {
+                    unsortedArray[i] = rand.Next(0, 100);
+                }
             }
         }
 
-        public static void FillArray()
-        {
-            Random rand = new Random();
-            for (int i = 0; i < unsortedArray.Length; i++)
-            {
-                unsortedArray[i] = rand.Next(0, 100);
-            }
-        }
 
         static void Main(string[] args)
         {
-            FillArray();
-            QuickBucketSort();
-            for (int i = 0; i < blocks.Length; i++)
-            {
-                blocks[i].Sort();
-            }
-            foreach (var el in sortedArray) Console.Write(el + " ");
+            
+            SerialSort.FillArray();
+            SerialSort.QuickBucketSort();
+           
         }
     }
 }
