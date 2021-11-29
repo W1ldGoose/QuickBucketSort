@@ -19,7 +19,7 @@ namespace SerialSort
     public class ParallelSort
         {
             // кол-во элементов в массиве
-            [Params(100, 10000)] 
+            [Params(100, 10000, 1000000)] 
             public static int elemsCount = 100;
 
             // число итераций = степени числа блоков
@@ -163,11 +163,11 @@ namespace SerialSort
                     blocks[i].Sort();
                 }
 
-                int[] result = blocks.SelectMany(x => x).ToArray();
-                foreach (var i in result)
+               // int[] result = blocks.SelectMany(x => x).ToArray();
+                /*foreach (var i in result)
                 {
                     Console.Write(i+" ");
-                }
+                }*/
             }
             public void FillArray(object threadIndex)
             {
@@ -178,7 +178,7 @@ namespace SerialSort
                 Random rand = new Random();
                 for (int i = startIndex; i < finishIndex; i++)
                 {
-                    unsortedArray[i] = rand.Next(0, 100);
+                    unsortedArray[i] = rand.Next(-50, 50);
                 }
             }
         }
