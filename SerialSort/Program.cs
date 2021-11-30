@@ -13,19 +13,25 @@ namespace SerialSort
             Random rand = new Random();
             for (int i = 0; i < unsortedArray.Length; i++)
             {
-                unsortedArray[i] = rand.Next(0, 1000000);
+                unsortedArray[i] = rand.Next(0, 100000);
             }
         }
+
+        public static int[] testArr;
 
         [MemoryDiagnoser()]
         [Orderer(SummaryOrderPolicy.FastestToSlowest)]
         [RankColumn()]
         [RPlotExporter]
+        // Usually, you shouldn't specify such characteristics like LaunchCount, WarmupCount, TargetCount, or IterationTime
+        // because BenchmarkDotNet has a smart algorithm to choose these values automatically based on received measurements.
         [SimpleJob(RunStrategy.Throughput)]
         public class BenchmarkTest
         {
-            [Params(1000000, 10000000, 100000000)]
-            public int N = 1000000;
+            [Params( 1000000, 10000000, 100000000)] 
+            public int N = 1000;
+
+            public int[] unsortedArray;
 
             [GlobalSetup]
             public void Setup()
@@ -33,31 +39,24 @@ namespace SerialSort
                 unsortedArray = new int[N];
                 FillArray(unsortedArray);
             }
-            
-            public int[] unsortedArray;
 
             [Benchmark]
-            public void ParallelTest()
-            {
-                ParallelSort.ShellSort(unsortedArray);
-            }
-
-            // Console.WriteLine("Отсортированный массив: {0}", string.Join(", ", unsortedArray));
+            public void ParallelTest() => QBucketSort.ParallelQBucketSort(unsortedArray);
 
             [Benchmark]
-            public void SerialTest()
-            {
-                SerialSort.ShellSort(unsortedArray);
-            }
-
-            // Console.WriteLine("Отсортированный массив: {0}", string.Join(", ", unsortedArray));
+            public void SerialTest() => QBucketSort.SerialQBucketSort(unsortedArray);
         }
+
         static void Main(string[] args)
         {
-           // ParallelSort parallelSort = new ParallelSort();
-           // parallelSort.QuickBucketSort();
-            var summary = BenchmarkRunner.Run<ParallelSort>();
-            // var summary = BenchmarkRunner.Run<SerialSort>();
+            /*testArr = new int[100];
+            FillArray(testArr);
+            QBucketSort.SerialQBucketSort(testArr);
+            foreach (var i in testArr)
+            {
+                Console.Write(i+" ");
+            }*/
+           var summary = BenchmarkRunner.Run<BenchmarkTest>();
         }
     }
 }

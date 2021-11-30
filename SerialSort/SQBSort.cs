@@ -1,47 +1,32 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Engines;
-using BenchmarkDotNet.Order;
+using System.Threading;
+
 
 namespace SerialSort
 {
     
-    [MemoryDiagnoser()]
-    [Orderer(SummaryOrderPolicy.FastestToSlowest)]
-    [RankColumn()]
-    [RPlotExporter]
-    // Usually, you shouldn't specify such characteristics like LaunchCount, WarmupCount, TargetCount, or IterationTime
-    // because BenchmarkDotNet has a smart algorithm to choose these values automatically based on received measurements.
-    [SimpleJob(RunStrategy.Throughput, 3)]
-   public class SerialSort
+   public static partial class QBucketSort
         {
-            // кол-во элементов в массиве
-            [Params(100, 10000)] 
-            public int elemsCount;
-
+        
             // число итераций = степени числа блоков
-            [Params(3, 4)] 
-            public static int N;
+            public static int N = 3;
+            private static int[] unsortedArray;
 
-            public int[] unsortedArray;
-
+            private static int elemsCount;
             // число блоков должно быть степенью 2
             public static int blocksCount = (int) Math.Pow(2, N);
-            public static int threadsCount = blocksCount / 2;
             public static List<int>[] blocks = new List<int>[blocksCount];
+            private static int threadsCount = blocksCount / 2;
+            private static Thread[] threads = new Thread[threadsCount];
+        
+            private static int blocksStep = blocksCount / threadsCount;
 
 
             // заполняем блоки
-            public void FillBlocks()
+            private static void FillBlocksSerial()
             {
-                // инициализируем блоки
-                for (int i = 0; i < blocksCount; i++)
-                {
-                    blocks[i] = new List<int>();
-                }
-
                 for (int i = 0; i < blocks.Length; i++)
                 {
                     int firstIndex = i * (elemsCount / blocksCount);
@@ -55,39 +40,41 @@ namespace SerialSort
                 }
             }
             
-            public void CompareBlocks(int firstBlockNum, int secondBlockNum, int pivot)
+            private static void CompareBlocksSerial(int firstBlock, int secondBlock, int pivot)
             {
-                int secondBlock = blocks[secondBlockNum].Count;
-                int i = 0;
-                while (i < blocks[firstBlockNum].Count)
+                int[] mergedArray = new int[blocks[firstBlock].Count + blocks[secondBlock].Count];
+            
+                Array.Copy(blocks[firstBlock].ToArray(), mergedArray, blocks[firstBlock].Count);
+                Array.Copy(blocks[secondBlock].ToArray(), 0, mergedArray, blocks[firstBlock].Count,
+                    blocks[secondBlock].Count);
+                blocks[firstBlock].Clear();
+                blocks[secondBlock].Clear();
+                for (int i = 0; i < mergedArray.Length; i++)
                 {
-                    if (blocks[firstBlockNum][i] >= pivot)
+                    if (mergedArray[i] >= pivot)
                     {
-                        blocks[secondBlockNum].Add(blocks[firstBlockNum][i]);
-                        blocks[firstBlockNum].Remove(blocks[firstBlockNum][i]);
-                        i--;
+                        blocks[secondBlock].Add(mergedArray[i]);
                     }
-                    i++;
-                }
-                i = 0;
-                while (i < secondBlock)
-                {
-                    if (blocks[secondBlockNum][i] < pivot)
+                    else
                     {
-                        blocks[firstBlockNum].Add(blocks[secondBlockNum][i]);
-                        blocks[secondBlockNum].Remove(blocks[secondBlockNum][i]);
-                        i--;
-                        secondBlock--;
+                        blocks[firstBlock].Add(mergedArray[i]);
                     }
-                    i++;
                 }
             }
-
-            [Benchmark]
-            public void QuickBucketSort()
+            
+            public static void SerialQBucketSort(int[] array)
             {
-                FillArray();
-                FillBlocks();
+                unsortedArray = array;
+                elemsCount = array.Length;
+
+               // инициализируем блоки
+               for (int i = 0; i < blocksCount; i++)
+               {
+                   blocks[i] = new List<int>();
+                   blocks[i].Capacity = array.Length / blocksCount;
+               }
+                FillBlocksSerial();
+                
                 for (int i = 0; i < N; i++)
                 {
                     int step = (int) Math.Pow(2, N - 1 - i);
@@ -105,7 +92,7 @@ namespace SerialSort
                         while (x < step)
                         {
                             //Console.WriteLine("сравнение блока {0} и {1}", first, second);
-                            CompareBlocks(first, second, pivot);
+                            CompareBlocksSerial(first, second, pivot);
                             x++;
                             first++;
                             second++;
@@ -120,15 +107,19 @@ namespace SerialSort
                 {
                     blocks[i].Sort();
                 }
+                AssembleArray();
             }
 
-            public void FillArray()
+            private static void AssembleArray()
             {
-                unsortedArray = new int[elemsCount];
-                Random rand = new Random();
-                for (int i = 0; i < unsortedArray.Length; i++)
+                int i1 = 0;
+                for (int i = 0; i < blocksCount; i++)
                 {
-                    unsortedArray[i] = rand.Next(0, 100);
+                    for (int j = 0; j < blocks[i].Count; j++)
+                    {
+                        unsortedArray[i1] = blocks[i][j];
+                        i1++;
+                    }
                 }
             }
         }
