@@ -3,6 +3,12 @@
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <TargetFramework>net5.0</TargetFramework>
+        <AssemblyName>QuickBucketSort</AssemblyName>
+        <RootNamespace>QuickBucketSort</RootNamespace>
+        <PackageId>QuickBucketSort</PackageId>
+        <Authors>WildGoose</Authors>
+        <Company>QuickBucketSort</Company>
+        <Product>QuickBucketSort</Product>
     </PropertyGroup>
 
     <ItemGroup>

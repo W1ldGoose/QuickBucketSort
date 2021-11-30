@@ -22,13 +22,13 @@ namespace SerialSort
         [MemoryDiagnoser()]
         [Orderer(SummaryOrderPolicy.FastestToSlowest)]
         [RankColumn()]
-        [RPlotExporter]
+       // [RPlotExporter]
         // Usually, you shouldn't specify such characteristics like LaunchCount, WarmupCount, TargetCount, or IterationTime
         // because BenchmarkDotNet has a smart algorithm to choose these values automatically based on received measurements.
         [SimpleJob(RunStrategy.Throughput)]
         public class BenchmarkTest
         {
-            [Params( 1000000, 10000000, 100000000)] 
+            [Params( 1000)] 
             public int N = 1000;
 
             public int[] unsortedArray;
